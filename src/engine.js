@@ -11,6 +11,7 @@ const cfg = require("./config");
 const context = require("./context");
 const persona = require("./persona");
 const fluxos = require("./fluxos");
+const admin = require("./admin");
 const llm = require("./llm");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -40,6 +41,7 @@ function quebrar(texto) {
 }
 
 function chatLiberado(from) {
+  if (admin.liberadoExtra(from)) return true; // liberados em runtime (!carol lock)
   return cfg.CHATS_LIBERADOS.size === 0 || cfg.CHATS_LIBERADOS.has(from);
 }
 
@@ -73,7 +75,7 @@ async function esperarDigitando(sock, from, inicio, totalMs) {
  * (chat liberado), pra o caller saber que não precisa fazer mais nada com ela.
  */
 async function handle({ sock, from, senderId, name, text, msg }) {
-  if (!cfg.ativo) return false;
+  if (!admin.estaAtivo()) return false;
   if (!chatLiberado(from)) return false;
 
   const ehGrupo = String(from).endsWith("@g.us");
@@ -162,4 +164,4 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   return true;
 }
 
-module.exports = { handle, chatLiberado };
+module.exports = { handle, chatLiberado, comando: admin.comando };

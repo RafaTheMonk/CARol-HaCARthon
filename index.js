@@ -68,6 +68,17 @@ async function start() {
       msg.message.imageMessage?.caption ||
       "";
 
+    // Comando admin (!carol ...): só o dono (OWNER_JID no .env). Antes do gate de
+    // allowlist, pra ligar/desligar e liberar chats de qualquer lugar.
+    const ownerJid = process.env.OWNER_JID;
+    if (/^!carol\b/i.test(text) && ownerJid && (senderId === ownerJid || from === ownerJid)) {
+      const resp = engine.comando(text, from);
+      if (resp) {
+        await sock.sendMessage(from, { text: resp });
+        return;
+      }
+    }
+
     await engine.handle({
       sock,
       from,
