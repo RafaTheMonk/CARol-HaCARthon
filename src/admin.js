@@ -11,6 +11,7 @@ const path = require("path");
 const cfg = require("./config");
 
 const FILE = path.join(__dirname, "..", "data", "admin.json");
+const EXP_FILE = path.join(__dirname, "..", "data", "carolexp.md");
 
 let estado = { ativo: cfg.ativo !== false, liberados: [] };
 try {
@@ -87,6 +88,16 @@ function comando(text, chatAtual) {
   }
 }
 
+// Resumo do processo/criação da CARol (comando oculto !carolexp). O conteúdo fica
+// num arquivo LOCAL (data/carolexp.md, gitignored) - não vai pro repositório.
+function resumoExp() {
+  try {
+    const t = fs.readFileSync(EXP_FILE, "utf8").trim();
+    if (t) return t;
+  } catch {}
+  return "Resumo não configurado neste ambiente (falta data/carolexp.md).";
+}
+
 module.exports = {
   estaAtivo,
   setAtivo,
@@ -95,4 +106,5 @@ module.exports = {
   addChat,
   removeChat,
   comando,
+  resumoExp,
 };

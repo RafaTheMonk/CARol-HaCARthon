@@ -219,4 +219,10 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   return true;
 }
 
-module.exports = { handle, chatLiberado, marcarDonoFalou, comando: admin.comando };
+module.exports = {
+  handle,
+  chatLiberado,
+  marcarDonoFalou,
+  comando: admin.comando,
+  resumoExp: admin.resumoExp,
+};

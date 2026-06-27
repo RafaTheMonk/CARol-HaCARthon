@@ -73,7 +73,15 @@ async function start() {
     const ownerJid = process.env.OWNER_JID;
     const ehDono =
       msg.key.fromMe || (ownerJid && (senderId === ownerJid || from === ownerJid));
-    if (/^!carol\b/i.test(text) && ehDono) {
+    if (/^!carol/i.test(text) && ehDono) {
+      // !carolexp: comando oculto que manda o resumo do processo da CARol.
+      if (/^!carolexp\b/i.test(text)) {
+        const resumo = engine.resumoExp();
+        for (let i = 0; i < resumo.length; i += 3500) {
+          await sock.sendMessage(from, { text: resumo.slice(i, i + 3500) });
+        }
+        return;
+      }
       const resp = engine.comando(text, from);
       if (resp) {
         await sock.sendMessage(from, { text: resp });
