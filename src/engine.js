@@ -22,6 +22,13 @@ const ultimaResposta = new Map();
 // Nome (pushName) da pessoa de cada DM, pra CARol chamar pelo nome.
 const nomeDM = new Map();
 
+// Os fluxos passo a passo (retificação) só entram no system prompt quando o papo é
+// sobre pendência/APP/retificação - economiza tokens no resto da conversa (a persona
+// já traz o conhecimento-base). Mídia (áudio/imagem) sempre injeta, porque não dá
+// pra ler o tema sem chamar o modelo.
+const GATILHO_FLUXOS =
+  /retific|pend[êe]nc|suspens|pol[íi]gono|georref|beira do rio|reserva legal|\bapp\b|erro no mapa|recibo/i;
+
 const LIMITE_CHUNK = 3500;
 
 function quebrar(texto) {
@@ -108,9 +115,17 @@ async function handle({ sock, from, senderId, name, text, msg }) {
     } catch {}
 
     let system = persona.montar({ ehGrupo });
-    // Fluxos de referência (guia, não roteiro fixo). Ficam constantes por chamada,
-    // então não atrapalham o prompt caching.
-    system += "\n\n" + fluxos.FLUXOS;
+    // Fluxos de referência (guia, não roteiro fixo) só quando o tema pede - olha as
+    // últimas falas da pessoa + a atual. Mídia sempre injeta (tema desconhecido).
+    const recente = context
+      .get(from)
+      .filter((h) => h.role === "user")
+      .slice(-3)
+      .map((h) => h.text)
+      .join(" ");
+    if (mediaAtual || GATILHO_FLUXOS.test(recente)) {
+      system += "\n\n" + fluxos.FLUXOS;
+    }
     // Injeta o nome da pessoa no system prompt (só DM). Constante por chat, então
     // não atrapalha o prompt caching daquele chat.
     const nome = nomeDM.get(from);
