@@ -113,7 +113,8 @@ async function handle({ sock, from, senderId, name, text, msg }) {
     if (!ehGrupo && nome) {
       system +=
         `\n\nA pessoa com quem você está conversando se chama ${nome}. ` +
-        "Chame ela pelo nome de vez em quando, de forma natural e simples, sem exagerar.";
+        "Use o nome dela só na saudação do primeiro contato e, se fizer sentido, na " +
+        "despedida. No meio da conversa NÃO repita o nome.";
     }
     const history = context.get(from);
 
