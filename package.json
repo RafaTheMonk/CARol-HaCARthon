@@ -1,0 +1,18 @@
+{
+  "name": "carol-hacarthon",
+  "version": "1.0.0",
+  "description": "CARol - assistente de WhatsApp que ajuda donos de terra a entender o CAR (Cadastro Ambiental Rural)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.106.0",
+    "@google/genai": "^2.7.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc11",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
