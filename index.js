@@ -58,7 +58,6 @@ async function start() {
     if (type !== "notify") return;
     const msg = messages[0];
     if (!msg.message || msg.message.protocolMessage) return;
-    if (msg.key.fromMe) return; // nunca responde às próprias mensagens (anti-loop)
 
     const from = msg.key.remoteJid;
     const senderId = msg.key.participant || from;
@@ -80,6 +79,16 @@ async function start() {
         await sock.sendMessage(from, { text: resp });
         return;
       }
+    }
+
+    // fromMe = a conta do bot (o dono) falou. Nunca processa como mensagem de
+    // usuário (anti-loop). Mas se for num DM liberado, o dono está assumindo a
+    // conversa: pausa a CARol nesse chat (takeover manual).
+    if (msg.key.fromMe) {
+      if (engine.chatLiberado(from) && !String(from).endsWith("@g.us")) {
+        engine.marcarDonoFalou(from, text);
+      }
+      return;
     }
 
     await engine.handle({

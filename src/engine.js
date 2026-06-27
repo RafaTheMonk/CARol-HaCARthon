@@ -22,6 +22,8 @@ const gerando = new Set();
 const ultimaResposta = new Map();
 // Nome (pushName) da pessoa de cada DM, pra CARol chamar pelo nome.
 const nomeDM = new Map();
+// Takeover: quando o dono fala num chat, marca até quando a CARol fica pausada lá.
+const pausaAte = new Map();
 
 // Os fluxos passo a passo (retificação) só entram no system prompt quando o papo é
 // sobre pendência/APP/retificação - economiza tokens no resto da conversa (a persona
@@ -43,6 +45,21 @@ function quebrar(texto) {
 function chatLiberado(from) {
   if (admin.liberadoExtra(from)) return true; // liberados em runtime (!carol lock)
   return cfg.CHATS_LIBERADOS.size === 0 || cfg.CHATS_LIBERADOS.has(from);
+}
+
+// O dono assumiu a conversa neste chat (falou pela conta do bot). Pausa a CARol por
+// cfg.PAUSA_DONO_MS e registra a fala do dono como se fosse resposta da CARol, pra o
+// contexto seguir coerente quando ela voltar. Cada chamada renova o prazo.
+function marcarDonoFalou(from, text) {
+  if (!cfg.PAUSA_DONO_MS) return;
+  pausaAte.set(from, Date.now() + cfg.PAUSA_DONO_MS);
+  const t = String(text || "").trim();
+  if (t) context.push(from, { role: "assistant", text: t });
+}
+
+function pausadoPeloDono(from) {
+  const ate = pausaAte.get(from);
+  return !!ate && Date.now() < ate;
 }
 
 // Baixa a mídia (áudio/imagem) e devolve no formato dos providers: { mimeType, data }.
@@ -101,6 +118,10 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   if (!textoEntrada && !mediaAtual) return true; // nada útil (sticker, etc.)
 
   context.push(from, { role: "user", name: name || "alguém", text: textoEntrada });
+
+  // Dono assumiu a conversa há pouco? Guarda a fala da pessoa no contexto, mas a
+  // CARol fica calada (takeover manual) até o prazo passar.
+  if (pausadoPeloDono(from)) return true;
 
   // 2. gate de geração.
   if (gerando.has(from)) return true;
@@ -164,4 +185,4 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   return true;
 }
 
-module.exports = { handle, chatLiberado, comando: admin.comando };
+module.exports = { handle, chatLiberado, marcarDonoFalou, comando: admin.comando };
