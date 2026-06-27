@@ -12,6 +12,7 @@ const context = require("./context");
 const persona = require("./persona");
 const fluxos = require("./fluxos");
 const admin = require("./admin");
+const historico = require("./historico");
 const llm = require("./llm");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -54,7 +55,10 @@ function marcarDonoFalou(from, text) {
   if (!cfg.PAUSA_DONO_MS) return;
   pausaAte.set(from, Date.now() + cfg.PAUSA_DONO_MS);
   const t = String(text || "").trim();
-  if (t) context.push(from, { role: "assistant", text: t });
+  if (t) {
+    context.push(from, { role: "assistant", text: t });
+    historico.registrar({ chat: from, role: "dono", tipo: "texto", text: t });
+  }
 }
 
 function pausadoPeloDono(from) {
@@ -103,12 +107,15 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   const m = (msg && msg.message) || {};
   let mediaAtual = null;
   let textoEntrada = (text || "").trim();
+  let tipoEntrada = "texto";
   try {
     if (m.imageMessage) {
       mediaAtual = await baixarMedia(sock, msg, m.imageMessage.mimetype);
+      tipoEntrada = "imagem";
       if (!textoEntrada) textoEntrada = "[imagem]";
     } else if (m.audioMessage) {
       mediaAtual = await baixarMedia(sock, msg, m.audioMessage.mimetype);
+      tipoEntrada = "audio";
       if (!textoEntrada) textoEntrada = "[áudio]";
     }
   } catch (e) {
@@ -118,6 +125,16 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   if (!textoEntrada && !mediaAtual) return true; // nada útil (sticker, etc.)
 
   context.push(from, { role: "user", name: name || "alguém", text: textoEntrada });
+  // Persistência física pra análise futura (não gasta token, é só disco).
+  historico.registrar({
+    chat: from,
+    grupo: ehGrupo,
+    role: "user",
+    senderId,
+    nome: name || null,
+    tipo: tipoEntrada,
+    text: textoEntrada,
+  });
 
   // Dono assumiu a conversa há pouco? Guarda a fala da pessoa no contexto, mas a
   // CARol fica calada (takeover manual) até o prazo passar.
@@ -169,6 +186,14 @@ async function handle({ sock, from, senderId, name, text, msg }) {
         await sock.sendMessage(from, { text: parte });
       }
       ultimaResposta.set(from, Date.now());
+      historico.registrar({
+        chat: from,
+        grupo: ehGrupo,
+        role: "assistant",
+        provider: cfg.PROVIDER,
+        tipo: "texto",
+        text: resposta,
+      });
       console.log(`[CARol] ${from} | ${cfg.PROVIDER} -> ${resposta.slice(0, 60)}`);
     }
   } catch (e) {
