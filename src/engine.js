@@ -127,12 +127,12 @@ async function handle({ sock, from, senderId, name, text, msg }) {
         await sock.sendMessage(from, { text: parte });
       }
       ultimaResposta.set(from, Date.now());
-      console.log(`🤖 [CARol] ${from} | ${cfg.PROVIDER} -> ${resposta.slice(0, 60)}`);
+      console.log(`[CARol] ${from} | ${cfg.PROVIDER} -> ${resposta.slice(0, 60)}`);
     }
   } catch (e) {
     console.error("[CARol] erro:", e?.message || e);
     try {
-      await sock.sendMessage(from, { text: "⚠️ deu um erro aqui, tenta de novo." });
+      await sock.sendMessage(from, { text: "Deu um erro aqui, tenta de novo." });
     } catch {}
   } finally {
     try {

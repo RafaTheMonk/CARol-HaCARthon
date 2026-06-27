@@ -28,26 +28,26 @@ async function start() {
 
   sock.ev.on("connection.update", ({ connection, lastDisconnect, qr }) => {
     if (qr) {
-      console.log("📱 Escaneie o QR code abaixo com o WhatsApp:");
+      console.log("Escaneie o QR code abaixo com o WhatsApp:");
       qrcode.generate(qr, { small: true });
     }
     if (connection === "open") {
-      console.log("✅ CARol conectada!");
+      console.log("CARol conectada!");
       reconnecting = false;
     }
     if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      console.log("❌ Conexão fechada. statusCode:", statusCode);
+      console.log("Conexao fechada. statusCode:", statusCode);
       const naoReconectar =
         statusCode === DisconnectReason.loggedOut ||
         statusCode === DisconnectReason.connectionReplaced;
       if (naoReconectar) {
-        console.log("🛑 Sessão encerrada (logout/conflito). Não reconectando.");
+        console.log("Sessao encerrada (logout/conflito). Nao reconectando.");
         return;
       }
       if (reconnecting) return;
       reconnecting = true;
-      console.log("🔄 Reconectando em 3s...");
+      console.log("Reconectando em 3s...");
       setTimeout(() => start(), 3000);
     }
   });
@@ -80,10 +80,10 @@ async function start() {
 }
 
 process.on("unhandledRejection", (err) => {
-  console.error("⚠️ unhandledRejection:", err?.message || err);
+  console.error("unhandledRejection:", err?.message || err);
 });
 process.on("uncaughtException", (err) => {
-  console.error("⚠️ uncaughtException:", err?.message || err);
+  console.error("uncaughtException:", err?.message || err);
 });
 
 start();
