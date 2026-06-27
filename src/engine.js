@@ -10,6 +10,7 @@ const { downloadMediaMessage } = require("@whiskeysockets/baileys");
 const cfg = require("./config");
 const context = require("./context");
 const persona = require("./persona");
+const fluxos = require("./fluxos");
 const llm = require("./llm");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -107,6 +108,9 @@ async function handle({ sock, from, senderId, name, text, msg }) {
     } catch {}
 
     let system = persona.montar({ ehGrupo });
+    // Fluxos de referência (guia, não roteiro fixo). Ficam constantes por chamada,
+    // então não atrapalham o prompt caching.
+    system += "\n\n" + fluxos.FLUXOS;
     // Injeta o nome da pessoa no system prompt (só DM). Constante por chat, então
     // não atrapalha o prompt caching daquele chat.
     const nome = nomeDM.get(from);
