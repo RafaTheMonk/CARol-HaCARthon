@@ -114,9 +114,18 @@ async function handle({ sock, from, senderId, name, text, msg }) {
       tipoEntrada = "imagem";
       if (!textoEntrada) textoEntrada = "[imagem]";
     } else if (m.audioMessage) {
-      mediaAtual = await baixarMedia(sock, msg, m.audioMessage.mimetype);
+      const audio = await baixarMedia(sock, msg, m.audioMessage.mimetype);
       tipoEntrada = "audio";
-      if (!textoEntrada) textoEntrada = "[áudio]";
+      // Transcreve numa chamada barata e usa o TEXTO no fluxo (mais barato que
+      // reenviar o áudio na chamada principal, e a transcrição fica no histórico).
+      const transcricao = await llm.transcrever({ media: audio }).catch(() => "");
+      if (transcricao) {
+        textoEntrada = transcricao;
+        mediaAtual = null; // já virou texto; não reenvia o áudio
+      } else {
+        mediaAtual = audio; // fallback: provider sem transcrição (ex.: claude)
+        if (!textoEntrada) textoEntrada = "[áudio]";
+      }
     }
   } catch (e) {
     console.error("[CARol] erro baixando mídia:", e?.message || e);

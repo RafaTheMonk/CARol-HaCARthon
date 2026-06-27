@@ -71,4 +71,11 @@ async function responder({ system, history, onDelta, mediaAtual }) {
     .trim();
 }
 
-module.exports = { responder };
+// Claude não aceita áudio: sem transcrição. Devolve vazio pra o engine cair no
+// fallback (mantém o áudio na chamada principal ou o marcador "[áudio]").
+async function transcrever() {
+  return "";
+}
+
+module.exports = { responder, transcrever };
+

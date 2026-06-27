@@ -67,4 +67,27 @@ async function responder({ system, history, onDelta, mediaAtual }) {
   return full.trim();
 }
 
-module.exports = { responder };
+// Transcreve um áudio (só o texto falado). Chamada enxuta, sem persona nem
+// histórico, pra sair barata. Usada pra salvar a fala no histórico e alimentar o
+// contexto como texto (em vez de reenviar o áudio na chamada principal).
+async function transcrever({ media }) {
+  if (!media || !media.data) return "";
+  const resp = await client().models.generateContent({
+    model: MODELO_GEMINI,
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: "Transcreva o áudio abaixo. Responda só com o que foi falado, em texto, sem comentar nem traduzir." },
+          { inlineData: { mimeType: media.mimeType, data: media.data } },
+        ],
+      },
+    ],
+  });
+  let t = resp?.text;
+  if (typeof t === "function") t = t();
+  return String(t || "").trim();
+}
+
+module.exports = { responder, transcrever };
+

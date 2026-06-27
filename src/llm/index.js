@@ -29,4 +29,9 @@ async function responder(args) {
   return getProvider().responder(args);
 }
 
-module.exports = { responder, getProvider };
+async function transcrever(args) {
+  const p = getProvider();
+  return p.transcrever ? p.transcrever(args) : "";
+}
+
+module.exports = { responder, transcrever, getProvider };
