@@ -35,6 +35,27 @@ function toGeminiContents(history) {
   return contents;
 }
 
+// O Gemini às vezes devolve 503 UNAVAILABLE ("high demand") - pico temporário.
+// Sem retry, uma falha dessas derruba a resposta (e a transcrição de áudio) na
+// hora. Tenta de novo com backoff curto antes de desistir.
+function ehSobrecarga(e) {
+  const s = JSON.stringify(e?.message || e || "");
+  return e?.status === 503 || /UNAVAILABLE|503|high demand|overloaded/i.test(s);
+}
+async function comRetry(fn, tentativas = 3) {
+  let ultimo;
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      ultimo = e;
+      if (!ehSobrecarga(e) || i === tentativas - 1) throw e;
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  throw ultimo;
+}
+
 async function responder({ system, history, onDelta, mediaAtual }) {
   const contents = toGeminiContents(history);
   if (!contents.length) return "";
@@ -49,11 +70,13 @@ async function responder({ system, history, onDelta, mediaAtual }) {
     }
   }
 
-  const stream = await client().models.generateContentStream({
-    model: MODELO_GEMINI,
-    config: { systemInstruction: system },
-    contents,
-  });
+  const stream = await comRetry(() =>
+    client().models.generateContentStream({
+      model: MODELO_GEMINI,
+      config: { systemInstruction: system },
+      contents,
+    })
+  );
 
   let full = "";
   for await (const chunk of stream) {
@@ -72,18 +95,20 @@ async function responder({ system, history, onDelta, mediaAtual }) {
 // contexto como texto (em vez de reenviar o áudio na chamada principal).
 async function transcrever({ media }) {
   if (!media || !media.data) return "";
-  const resp = await client().models.generateContent({
-    model: MODELO_GEMINI,
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: "Transcreva o áudio abaixo. Responda só com o que foi falado, em texto, sem comentar nem traduzir." },
-          { inlineData: { mimeType: media.mimeType, data: media.data } },
-        ],
-      },
-    ],
-  });
+  const resp = await comRetry(() =>
+    client().models.generateContent({
+      model: MODELO_GEMINI,
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: "Transcreva o áudio abaixo. Responda só com o que foi falado, em texto, sem comentar nem traduzir." },
+            { inlineData: { mimeType: media.mimeType, data: media.data } },
+          ],
+        },
+      ],
+    })
+  );
   let t = resp?.text;
   if (typeof t === "function") t = t();
   return String(t || "").trim();

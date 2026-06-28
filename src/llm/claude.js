@@ -9,6 +9,12 @@
 
 const { MODELO_CLAUDE, MAX_TOKENS } = require("../config");
 
+// Tem chave configurada? Usado pelo fallback (llm/index.js) pra não tentar o Claude
+// quando não há credencial.
+function temChave() {
+  return !!process.env.ANTHROPIC_API_KEY;
+}
+
 let _client = null;
 function client() {
   if (_client) return _client;
@@ -77,5 +83,5 @@ async function transcrever() {
   return "";
 }
 
-module.exports = { responder, transcrever };
+module.exports = { responder, transcrever, temChave };
 
