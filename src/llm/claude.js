@@ -9,6 +9,12 @@
 
 const { MODELO_CLAUDE, MAX_TOKENS } = require("../config");
 
+// Tem chave configurada? Usado pelo fallback (llm/index.js) pra não tentar o Claude
+// quando não há credencial.
+function temChave() {
+  return !!process.env.ANTHROPIC_API_KEY;
+}
+
 let _client = null;
 function client() {
   if (_client) return _client;
@@ -71,4 +77,11 @@ async function responder({ system, history, onDelta, mediaAtual }) {
     .trim();
 }
 
-module.exports = { responder };
+// Claude não aceita áudio: sem transcrição. Devolve vazio pra o engine cair no
+// fallback (mantém o áudio na chamada principal ou o marcador "[áudio]").
+async function transcrever() {
+  return "";
+}
+
+module.exports = { responder, transcrever, temChave };
+

@@ -32,11 +32,17 @@ module.exports = {
   // ── Atraso humanizado ──────────────────────────────────────────────────────
   // Tempo mínimo (ms) até responder, mostrando "digitando…". A geração já conta;
   // só completa o que faltar. 0 = responde assim que ficar pronto.
-  DELAY_RESPOSTA_MS: Number(process.env.RT_DELAY_MS || 10000),
+  DELAY_RESPOSTA_MS: Number(process.env.RT_DELAY_MS || 5000),
 
   // ── Anti-flood ─────────────────────────────────────────────────────────────
   // Intervalo mínimo (ms) entre respostas no mesmo chat. 0 = sem limite.
   INTERVALO_MIN_MS: Number(process.env.RT_INTERVALO_MIN_MS || 0),
+
+  // ── Takeover do dono ───────────────────────────────────────────────────────
+  // Quando o dono fala num DM liberado (assume a conversa pela conta do bot), a
+  // CARol pausa nesse chat por esse tempo. Cada fala do dono renova; passado o
+  // tempo sem ele falar, a CARol volta a responder. 0 = desliga o recurso.
+  PAUSA_DONO_MS: Number(process.env.RT_PAUSA_DONO_MS || 60000),
 
   // Liga/desliga global (kill switch em runtime).
   ativo: true,

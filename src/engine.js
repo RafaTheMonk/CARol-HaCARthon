@@ -11,6 +11,8 @@ const cfg = require("./config");
 const context = require("./context");
 const persona = require("./persona");
 const fluxos = require("./fluxos");
+const admin = require("./admin");
+const historico = require("./historico");
 const llm = require("./llm");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -21,6 +23,15 @@ const gerando = new Set();
 const ultimaResposta = new Map();
 // Nome (pushName) da pessoa de cada DM, pra CARol chamar pelo nome.
 const nomeDM = new Map();
+// Takeover: quando o dono fala num chat, marca até quando a CARol fica pausada lá.
+const pausaAte = new Map();
+
+// Os fluxos passo a passo (retificação) só entram no system prompt quando o papo é
+// sobre pendência/APP/retificação - economiza tokens no resto da conversa (a persona
+// já traz o conhecimento-base). Mídia (áudio/imagem) sempre injeta, porque não dá
+// pra ler o tema sem chamar o modelo.
+const GATILHO_FLUXOS =
+  /retific|pend[êe]nc|suspens|pol[íi]gono|georref|beira do rio|reserva legal|\bapp\b|erro no mapa|recibo/i;
 
 const LIMITE_CHUNK = 3500;
 
@@ -33,7 +44,26 @@ function quebrar(texto) {
 }
 
 function chatLiberado(from) {
+  if (admin.liberadoExtra(from)) return true; // liberados em runtime (!carol lock)
   return cfg.CHATS_LIBERADOS.size === 0 || cfg.CHATS_LIBERADOS.has(from);
+}
+
+// O dono assumiu a conversa neste chat (falou pela conta do bot). Pausa a CARol por
+// cfg.PAUSA_DONO_MS e registra a fala do dono como se fosse resposta da CARol, pra o
+// contexto seguir coerente quando ela voltar. Cada chamada renova o prazo.
+function marcarDonoFalou(from, text) {
+  if (!cfg.PAUSA_DONO_MS) return;
+  pausaAte.set(from, Date.now() + cfg.PAUSA_DONO_MS);
+  const t = String(text || "").trim();
+  if (t) {
+    context.push(from, { role: "assistant", text: t });
+    historico.registrar({ chat: from, role: "dono", tipo: "texto", text: t });
+  }
+}
+
+function pausadoPeloDono(from) {
+  const ate = pausaAte.get(from);
+  return !!ate && Date.now() < ate;
 }
 
 // Baixa a mídia (áudio/imagem) e devolve no formato dos providers: { mimeType, data }.
@@ -66,7 +96,7 @@ async function esperarDigitando(sock, from, inicio, totalMs) {
  * (chat liberado), pra o caller saber que não precisa fazer mais nada com ela.
  */
 async function handle({ sock, from, senderId, name, text, msg }) {
-  if (!cfg.ativo) return false;
+  if (!admin.estaAtivo()) return false;
   if (!chatLiberado(from)) return false;
 
   const ehGrupo = String(from).endsWith("@g.us");
@@ -77,13 +107,25 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   const m = (msg && msg.message) || {};
   let mediaAtual = null;
   let textoEntrada = (text || "").trim();
+  let tipoEntrada = "texto";
   try {
     if (m.imageMessage) {
       mediaAtual = await baixarMedia(sock, msg, m.imageMessage.mimetype);
+      tipoEntrada = "imagem";
       if (!textoEntrada) textoEntrada = "[imagem]";
     } else if (m.audioMessage) {
-      mediaAtual = await baixarMedia(sock, msg, m.audioMessage.mimetype);
-      if (!textoEntrada) textoEntrada = "[áudio]";
+      const audio = await baixarMedia(sock, msg, m.audioMessage.mimetype);
+      tipoEntrada = "audio";
+      // Transcreve numa chamada barata e usa o TEXTO no fluxo (mais barato que
+      // reenviar o áudio na chamada principal, e a transcrição fica no histórico).
+      const transcricao = await llm.transcrever({ media: audio }).catch(() => "");
+      if (transcricao) {
+        textoEntrada = transcricao;
+        mediaAtual = null; // já virou texto; não reenvia o áudio
+      } else {
+        mediaAtual = audio; // fallback: provider sem transcrição (ex.: claude)
+        if (!textoEntrada) textoEntrada = "[áudio]";
+      }
     }
   } catch (e) {
     console.error("[CARol] erro baixando mídia:", e?.message || e);
@@ -92,6 +134,20 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   if (!textoEntrada && !mediaAtual) return true; // nada útil (sticker, etc.)
 
   context.push(from, { role: "user", name: name || "alguém", text: textoEntrada });
+  // Persistência física pra análise futura (não gasta token, é só disco).
+  historico.registrar({
+    chat: from,
+    grupo: ehGrupo,
+    role: "user",
+    senderId,
+    nome: name || null,
+    tipo: tipoEntrada,
+    text: textoEntrada,
+  });
+
+  // Dono assumiu a conversa há pouco? Guarda a fala da pessoa no contexto, mas a
+  // CARol fica calada (takeover manual) até o prazo passar.
+  if (pausadoPeloDono(from)) return true;
 
   // 2. gate de geração.
   if (gerando.has(from)) return true;
@@ -108,9 +164,17 @@ async function handle({ sock, from, senderId, name, text, msg }) {
     } catch {}
 
     let system = persona.montar({ ehGrupo });
-    // Fluxos de referência (guia, não roteiro fixo). Ficam constantes por chamada,
-    // então não atrapalham o prompt caching.
-    system += "\n\n" + fluxos.FLUXOS;
+    // Fluxos de referência (guia, não roteiro fixo) só quando o tema pede - olha as
+    // últimas falas da pessoa + a atual. Mídia sempre injeta (tema desconhecido).
+    const recente = context
+      .get(from)
+      .filter((h) => h.role === "user")
+      .slice(-3)
+      .map((h) => h.text)
+      .join(" ");
+    if (mediaAtual || GATILHO_FLUXOS.test(recente)) {
+      system += "\n\n" + fluxos.FLUXOS;
+    }
     // Injeta o nome da pessoa no system prompt (só DM). Constante por chat, então
     // não atrapalha o prompt caching daquele chat.
     const nome = nomeDM.get(from);
@@ -131,12 +195,22 @@ async function handle({ sock, from, senderId, name, text, msg }) {
         await sock.sendMessage(from, { text: parte });
       }
       ultimaResposta.set(from, Date.now());
+      historico.registrar({
+        chat: from,
+        grupo: ehGrupo,
+        role: "assistant",
+        provider: cfg.PROVIDER,
+        tipo: "texto",
+        text: resposta,
+      });
       console.log(`[CARol] ${from} | ${cfg.PROVIDER} -> ${resposta.slice(0, 60)}`);
     }
   } catch (e) {
     console.error("[CARol] erro:", e?.message || e);
     try {
-      await sock.sendMessage(from, { text: "Deu um erro aqui, tenta de novo." });
+      await sock.sendMessage(from, {
+        text: "Ih, deu um errinho aqui do meu lado. Pode mandar de novo, por gentileza?",
+      });
     } catch {}
   } finally {
     try {
@@ -147,4 +221,10 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   return true;
 }
 
-module.exports = { handle, chatLiberado };
+module.exports = {
+  handle,
+  chatLiberado,
+  marcarDonoFalou,
+  comando: admin.comando,
+  resumoExp: admin.resumoExp,
+};

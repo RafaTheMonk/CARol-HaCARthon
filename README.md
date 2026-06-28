@@ -47,7 +47,7 @@ npm start              # escaneie o QR code no terminal
 | `RT_CHATS` | (vazio) | JIDs onde a CARol responde, separados por vírgula. Vazio = todos |
 | `RT_MAX_HISTORICO` | `5` | Mensagens recentes reenviadas por chat (memória da conversa) |
 | `RT_MAX_TOKENS` | `400` | Teto de tokens de saída (resposta curta = mais barato) |
-| `RT_DELAY_MS` | `10000` | Atraso humanizado antes de responder (mostra "digitando…") |
+| `RT_DELAY_MS` | `5000` | Atraso humanizado antes de responder (mostra "digitando…") |
 | `RT_INTERVALO_MIN_MS` | `0` | Intervalo mínimo entre respostas no mesmo chat |
 
 ## Trocar de provider
