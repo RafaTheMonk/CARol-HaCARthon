@@ -208,7 +208,9 @@ async function handle({ sock, from, senderId, name, text, msg }) {
   } catch (e) {
     console.error("[CARol] erro:", e?.message || e);
     try {
-      await sock.sendMessage(from, { text: "Deu um erro aqui, tenta de novo." });
+      await sock.sendMessage(from, {
+        text: "Ih, deu um errinho aqui do meu lado. Pode mandar de novo, por gentileza?",
+      });
     } catch {}
   } finally {
     try {
