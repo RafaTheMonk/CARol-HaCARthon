@@ -50,7 +50,7 @@ function removeChat(jid) {
 
 // Interpreta um comando "!carol ...". Devolve a resposta (string) pra enviar, ou
 // null se o texto não for um comando da CARol. `chatAtual` é o JID de onde veio,
-// usado quando o comando não passa um JID explícito (ex.: "!carol lock" libera o
+// usado quando o comando não passa um JID explícito (ex.: "!carol unlock" remove o
 // próprio chat).
 function comando(text, chatAtual) {
   const t = String(text || "").trim();
@@ -70,10 +70,6 @@ function comando(text, chatAtual) {
     case "desligar":
       setAtivo(false);
       return "CARol desligada.";
-    case "lock":
-    case "add":
-      addChat(alvo);
-      return `Chat liberado: ${alvo}`;
     case "unlock":
     case "remove":
       removeChat(alvo);
@@ -84,7 +80,7 @@ function comando(text, chatAtual) {
         `Liberados em runtime: ${liberados().join(", ") || "(nenhum)"}`
       );
     default:
-      return "Comandos: !carol on | off | lock [jid] | unlock [jid] | status";
+      return "Comandos: !carol on | off | unlock [jid] | status";
   }
 }
 
