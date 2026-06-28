@@ -32,7 +32,7 @@ module.exports = {
   // ── Atraso humanizado ──────────────────────────────────────────────────────
   // Tempo mínimo (ms) até responder, mostrando "digitando…". A geração já conta;
   // só completa o que faltar. 0 = responde assim que ficar pronto.
-  DELAY_RESPOSTA_MS: Number(process.env.RT_DELAY_MS || 10000),
+  DELAY_RESPOSTA_MS: Number(process.env.RT_DELAY_MS || 5000),
 
   // ── Anti-flood ─────────────────────────────────────────────────────────────
   // Intervalo mínimo (ms) entre respostas no mesmo chat. 0 = sem limite.
