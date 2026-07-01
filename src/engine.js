@@ -35,6 +35,24 @@ const GATILHO_FLUXOS =
 
 const LIMITE_CHUNK = 3500;
 
+// A CARol pede um atendente humano escrevendo [[humano]] na resposta (tolerante a
+// [humano] com 1 colchete). Tira o marcador do texto e sinaliza o handoff. Usa flag
+// no replace (não .test) pra não depender do lastIndex do regex global entre chamadas.
+const RE_HUMANO = /\[\[?\s*humano\s*\]?\]/gi;
+function extrairHumano(texto) {
+  let handoff = false;
+  const limpo = String(texto || "")
+    .replace(RE_HUMANO, () => {
+      handoff = true;
+      return "";
+    })
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return { texto: limpo, handoff };
+}
+
 function quebrar(texto) {
   const t = (texto || "").trim();
   if (!t) return [];
@@ -190,8 +208,16 @@ async function handle({ sock, from, senderId, name, text, msg }) {
 
     if (resposta) {
       await esperarDigitando(sock, from, inicio, cfg.DELAY_RESPOSTA_MS);
-      context.push(from, { role: "assistant", text: resposta });
-      for (const parte of quebrar(resposta)) {
+      // A CARol pode pedir um atendente humano escrevendo [[humano]]. Tira o marcador
+      // do texto (o handoff em si é tratado depois de enviar a resposta acolhendo a pessoa).
+      const { texto: semHumano, handoff } = extrairHumano(resposta);
+      const textoFinal =
+        semHumano ||
+        (handoff
+          ? "Já já alguém da nossa equipe vem falar com você por aqui, tá? Só um instantinho."
+          : "Pode me contar de novo, por favor? Quero te ajudar direitinho.");
+      context.push(from, { role: "assistant", text: textoFinal });
+      for (const parte of quebrar(textoFinal)) {
         await sock.sendMessage(from, { text: parte });
       }
       ultimaResposta.set(from, Date.now());
@@ -201,9 +227,36 @@ async function handle({ sock, from, senderId, name, text, msg }) {
         role: "assistant",
         provider: cfg.PROVIDER,
         tipo: "texto",
-        text: resposta,
+        text: textoFinal,
       });
       console.log(`[CARol] ${from} | ${cfg.PROVIDER} -> ${resposta.slice(0, 60)}`);
+
+      // Handoff: a CARol pediu um humano. Já mandou a resposta acolhendo a pessoa;
+      // agora avisa o atendente (se configurado) e pausa a CARol nesse chat.
+      if (handoff) {
+        const alvo = cfg.ATENDENTE_JID;
+        const nomeChat = nomeDM.get(from) || name || "alguém";
+        const ultimaFala =
+          context.get(from).filter((h) => h.role === "user").slice(-1)[0]?.text || "";
+        const minutos = Math.round((cfg.PAUSA_HANDOFF_MS || 0) / 60000);
+        if (alvo) {
+          const aviso =
+            "🙋 *Atendimento humano pedido (CARol)*\n" +
+            `Chat: ${from}\n` +
+            `Pessoa: ${nomeChat}\n` +
+            (ultimaFala ? `Última fala: ${ultimaFala.slice(0, 300)}\n` : "") +
+            (minutos ? `CARol pausada ${minutos} min nesse chat.` : "CARol NÃO pausada (PAUSA_HANDOFF_MS=0).");
+          try {
+            await sock.sendMessage(alvo, { text: aviso });
+            console.log(`[CARol] handoff -> avisou ${alvo} sobre ${from}`);
+          } catch (e) {
+            console.error("[CARol] falha avisando atendente do handoff:", e?.message || e);
+          }
+        } else {
+          console.log(`[CARol] handoff pedido em ${from}, mas ATENDENTE_JID vazio (só pausa)`);
+        }
+        if (cfg.PAUSA_HANDOFF_MS) pausaAte.set(from, Date.now() + cfg.PAUSA_HANDOFF_MS);
+      }
     }
   } catch (e) {
     console.error("[CARol] erro:", e?.message || e);

@@ -44,6 +44,15 @@ module.exports = {
   // tempo sem ele falar, a CARol volta a responder. 0 = desliga o recurso.
   PAUSA_DONO_MS: Number(process.env.RT_PAUSA_DONO_MS || 60000),
 
+  // ── Handoff pra atendente humano ───────────────────────────────────────────
+  // Quando a pessoa insiste em falar com uma pessoa de verdade, a CARol escreve o
+  // marcador [[humano]] na resposta. O engine tira o marcador do texto, AVISA o
+  // atendente (ATENDENTE_JID) com o chat/nome/última fala e PAUSA a CARol nesse
+  // chat por PAUSA_HANDOFF_MS (reusa o mecanismo do takeover do dono), pra o humano
+  // assumir sem a CARol atropelar. ATENDENTE_JID vazio = não avisa ninguém (só pausa).
+  ATENDENTE_JID: process.env.RT_ATENDENTE_JID || "",
+  PAUSA_HANDOFF_MS: Number(process.env.RT_PAUSA_HANDOFF_MS || 30 * 60 * 1000),
+
   // Liga/desliga global (kill switch em runtime).
   ativo: true,
 };
